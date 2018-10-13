@@ -1,0 +1,62 @@
+#!/bin/bash
+readarray -t sinkData <<< $(pactl list sinks short | cut -f 1,2,5)
+i=0
+echo "$1" >> ~/testfile
+# iter through all sinks, finding the RUNNING state sink
+for sink in "${sinkData[@]}"; do
+if [ $(echo "$sink" | cut -f 3) = "RUNNING" ]; then
+	# switch sources on click, otherwise, update the display to active source
+	if [ "$1" != "1" ]; then
+		case "$(echo $sink | cut -f 2)" in
+			*pci*)
+				# speakers
+				echo "SPKR$(echo $sink | cut -d ' ' -f 1)"
+				;; 
+			*USB*)
+				# headphones/usb
+				echo "HDPH$(echo $sink | cut -d ' ' -f 1)"
+				;; 
+			*)
+				echo "OTHR$(echo $sink | cut -d ' ' -f 1)"
+				;;
+		esac
+		break
+	else
+	# get the next sink in the list
+	newSink=$(($i+1))
+	if [ $newSink -eq ${#sinkData[@]} ]; then
+		newSink=0
+	fi
+	newSink="${sinkData[$newSink]}"
+
+	# set default for new audio sources
+	pactl set-default-sink "$(echo $newSink | cut -d ' ' -f 1)"
+
+	# get active inputs and move them to the new sink
+	readarray -t activeInputs <<< $(pactl list sink-inputs short | cut -f 1)
+	for input in "${activeInputs[@]}"; do
+		pactl move-sink-input $input "$(echo $newSink | cut -d ' ' -f 1)" 		
+	done
+
+	# pretty printout for i3blocks
+	case "$(echo $newSink | cut -f 2)" in
+		*pci*)
+			# speakers
+			echo "SPKR$(echo $newSink | cut -d ' ' -f 1)"
+			;; 
+		*USB*)
+			# headphones/usb
+			echo "HDPH$(echo $newSink | cut -d ' ' -f 1)"
+			;; 
+		*)
+			echo "OTHR$(echo $newSink | cut -d ' ' -f 1)"
+			;;
+	esac
+
+	# done -- break out
+	break
+	fi
+	fi
+	i=$(($i+1))
+done
+
